@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#10131a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mail-Finder">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Mail-Finder</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}
+body{margin:0;padding:env(safe-area-inset-top) 16px env(safe-area-inset-bottom);font:16px -apple-system,BlinkMacSystemFont,sans-serif;background:#10131a;color:#f4f6fb}
+main{max-width:620px;margin:auto;padding:16px 0 32px}
+h1{font-size:27px;margin:10px 0 6px}.sub{color:#b8c0d0;line-height:1.45}
+.card{background:#1b2230;border:1px solid #303a4d;border-radius:18px;padding:16px;margin:16px 0}
+label{display:block;font-weight:650;margin:12px 0 6px}
+input[type=text],select{width:100%;padding:13px;border:1px solid #46536a;border-radius:11px;background:#111722;color:white;font:inherit}
+.check{display:flex;align-items:center;gap:10px;margin:10px 0}.check label{display:inline;margin:0;font-weight:400}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button{width:100%;padding:14px;margin-top:10px;border:0;border-radius:11px;background:#4c75e8;color:white;font-weight:700;font-size:16px}
+button.secondary{background:#303b50}button:disabled{opacity:.45}
+#status{color:#cbd6ee;white-space:pre-wrap;line-height:1.4}
+textarea{width:100%;min-height:180px;padding:12px;background:#0d121b;color:#eaf0ff;border:1px solid #46536a;border-radius:11px;font:12px ui-monospace,monospace}
+.note{font-size:13px;color:#9da9bd;line-height:1.45}
+a{color:#a9c0ff}
+</style>
+</head>
+<body><main>
+<h1>Mail-Finder</h1>
+<p class="sub">Erstellt mögliche E-Mail-Kandidaten lokal auf diesem Gerät und exportiert sie als TXT-Datei.</p>
+<section class="card">
+<label for="prefix">Bekannter Anfang</label><input id="prefix" type="text" value="m" maxlength="20" autocapitalize="off">
+<label for="suffix">Bekannter Rest vor @web.de (optional)</label><input id="suffix" type="text" maxlength="20" autocapitalize="off">
+<div class="row">
+<div><label for="count">Unbekannte Zeichen</label><select id="count"><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option></select></div>
+<div><label for="limit">Ergebnislimit</label><select id="limit"><option value="500">500</option><option value="1000">1.000</option><option value="5000" selected>5.000</option><option value="10000">10.000</option></select></div>
+</div>
+<label>Zeichengruppen</label>
+<div class="check"><input id="lower" type="checkbox" checked><label for="lower">Kleinbuchstaben a–z</label></div>
+<div class="check"><input id="upper" type="checkbox"><label for="upper">Großbuchstaben A–Z</label></div>
+<div class="check"><input id="digits" type="checkbox" checked><label for="digits">Zahlen 0–9</label></div>
+<div class="check"><input id="symbols" type="checkbox" checked><label for="symbols">Sonderzeichen . _ -</label></div>
+<button id="generate">Kandidaten generieren</button>
+<button id="download" class="secondary" disabled>TXT-Datei speichern</button>
+<p id="status">Bereit. Wähle deine bekannten Zeichen und starte den Generator.</p>
+</section>
+<section class="card">
+<label for="preview">Vorschau</label><textarea id="preview" readonly placeholder="Die ersten Kandidaten erscheinen hier …"></textarea>
+<p class="note">Die Vorschau zeigt maximal 150 Zeilen. Die TXT-Datei enthält alle erzeugten Kandidaten bis zum eingestellten Limit.</p>
+<button id="openmail" class="secondary">WEB.DE öffnen</button>
+<p class="note">Diese App prüft nicht, ob eine Adresse existiert und führt keine Anmeldeversuche durch. Nutze für die Kontowiederherstellung die offiziellen WEB.DE-Wiederherstellungswege.</p>
+</section>
+</main>
+<script>
+const $=id=>document.getElementById(id);let rows=[];
+function* combos(chars,n,p=""){if(n===0){yield p;return;}for(const c of chars)yield*combos(chars,n-1,p+c);}
+$("generate").onclick=()=>{
+ let chars="";if($("lower").checked)chars+="abcdefghijklmnopqrstuvwxyz";if($("upper").checked)chars+="ABCDEFGHIJKLMNOPQRSTUVWXYZ";if($("digits").checked)chars+="0123456789";if($("symbols").checked)chars+="._-";
+ chars=[...new Set(chars)].join("");if(!chars){$("status").textContent="Bitte mindestens eine Zeichengruppe auswählen.";return;}
+ const pre=$("prefix").value.trim(),suf=$("suffix").value.trim(),n=+$("count").value,limit=+$("limit").value;rows=[];
+ for(const mid of combos(chars,n)){rows.push(pre+mid+suf+"@web.de");if(rows.length>=limit)break;}
+ $("preview").value=rows.slice(0,150).join("\n");$("status").textContent=rows.length.toLocaleString("de-DE")+" Kandidaten erstellt. Falls das Limit erreicht wurde, ist die Liste nur ein Ausschnitt aller möglichen Kombinationen.";
+ $("download").disabled=!rows.length;
+};
+$("download").onclick=()=>{const blob=new Blob([rows.join("\n")+"\n"],{type:"text/plain;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="email-kandidaten.txt";a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);};
+$("openmail").onclick=()=>window.open("https://web.de/","_blank","noopener");
+if("serviceWorker" in navigator && location.protocol.startsWith("http"))navigator.serviceWorker.register("./sw.js").catch(()=>{});
+</script>
+</body></html>
